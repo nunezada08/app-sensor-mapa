@@ -9,7 +9,7 @@ import HomePage from './pages/HomePage';
 import NavigationPage from './pages/NavigationPage';
 import RouteOptionsPage from './pages/RouteOptionsPage';
 import { geocodeDestination, searchDestinations } from './services/geocoding';
-import { calculateRoutes } from './services/routing';
+import { calculatePathDistance, calculateRoutes } from './services/routing';
 
 export default function App() {
   const [screen, setScreen] = useState('home');
@@ -17,6 +17,9 @@ export default function App() {
   const [destination, setDestination] = useState(null);
   const [routes, setRoutes] = useState([]);
   const [selectedRoute, setSelectedRoute] = useState(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [startedAt, setStartedAt] = useState(null);
+  const [trailCoordinates, setTrailCoordinates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -48,6 +51,15 @@ export default function App() {
       clearTimeout(timer);
     };
   }, [destinationText]);
+
+  useEffect(() => {
+    if (!isNavigating || !location) return;
+    setTrailCoordinates((previousTrail) => {
+      const lastPoint = previousTrail[previousTrail.length - 1];
+      if (lastPoint && calculatePathDistance([lastPoint, location]) < 5) return previousTrail;
+      return [...previousTrail, location];
+    });
+  }, [location, isNavigating]);
 
   const openHome = () => {
     setError('');
@@ -108,15 +120,29 @@ export default function App() {
     }
   };
 
+  const startNavigation = () => {
+    if (!location) {
+      setError('A localização ainda não está disponível. Ative o GPS para iniciar.');
+      return;
+    }
+    setError('');
+    setTrailCoordinates([location]);
+    setStartedAt(Date.now());
+    setIsNavigating(true);
+  };
+
   const completeRoute = () => {
     if (!destination || !selectedRoute || !location) return;
+    const completedTrail = trailCoordinates.length ? trailCoordinates : [location];
+    const elapsedSeconds = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 1000)) : selectedRoute.durationSeconds;
+    const traveledDistance = calculatePathDistance(completedTrail);
     addCompletedRoute({
       destinationLabel: destination.label,
       destinationCoordinates: destination,
-      originCoordinates: location,
-      originLabel: `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`,
-      distanceMeters: selectedRoute.distanceMeters,
-      durationSeconds: selectedRoute.durationSeconds,
+      originCoordinates: completedTrail[0],
+      originLabel: `${completedTrail[0].latitude.toFixed(5)}, ${completedTrail[0].longitude.toFixed(5)}`,
+      distanceMeters: traveledDistance || selectedRoute.distanceMeters,
+      durationSeconds: elapsedSeconds,
       modeLabel: selectedRoute.modeLabel,
       lightingScore: selectedRoute.lightingScore,
     });
@@ -125,6 +151,9 @@ export default function App() {
     setDestination(null);
     setRoutes([]);
     setSelectedRoute(null);
+    setIsNavigating(false);
+    setStartedAt(null);
+    setTrailCoordinates([]);
   };
 
   const repeatRoute = (savedRoute) => {
@@ -136,8 +165,8 @@ export default function App() {
     <View style={styles.app}>
       <StatusBar style="light" />
       {screen === 'home' ? <HomePage destinationText={destinationText} setDestinationText={setDestinationText} onSearch={() => findRoute()} onSelectSuggestion={selectSuggestion} suggestions={suggestions} searchingSuggestions={searchingSuggestions} onHistory={() => setScreen('history')} onGps={() => setScreen('gps')} location={location} locationStatus={locationStatus} error={error} loading={loading} /> : null}
-      {screen === 'routes' && destination ? <RouteOptionsPage destination={destination} location={location} routes={routes} loading={loading} error={error} onBack={openHome} onSelect={(route) => { setSelectedRoute(route); setScreen('navigation'); }} /> : null}
-      {screen === 'navigation' && destination && selectedRoute ? <NavigationPage destination={destination} location={location} route={selectedRoute} onBack={() => setScreen('routes')} onFinish={completeRoute} /> : null}
+      {screen === 'routes' && destination ? <RouteOptionsPage destination={destination} location={location} routes={routes} loading={loading} error={error} onBack={openHome} onSelect={(route) => { setIsNavigating(false); setSelectedRoute(route); setTrailCoordinates([]); setScreen('navigation'); }} /> : null}
+      {screen === 'navigation' && destination && selectedRoute ? <NavigationPage destination={destination} location={location} route={selectedRoute} trailCoordinates={trailCoordinates} isNavigating={isNavigating} startedAt={startedAt} onBack={() => { setIsNavigating(false); setTrailCoordinates([]); setStartedAt(null); setScreen('routes'); }} onStart={startNavigation} onFinish={completeRoute} /> : null}
       {screen === 'gps' ? <GpsPage status={locationStatus} permissionDenied={permissionDenied} onBack={openHome} onRetry={retryLocation} /> : null}
       {screen === 'history' ? <HistoryPage history={history} onBack={openHome} onRepeat={repeatRoute} onClear={clearHistory} /> : null}
     </View>

@@ -73,6 +73,17 @@ function lightingKind(tags = {}) {
   return 'unknown';
 }
 
+function coordinateDistanceMeters(first, second) {
+  const latitude = ((first.latitude + second.latitude) / 2) * Math.PI / 180;
+  const latitudeMeters = (second.latitude - first.latitude) * 111320;
+  const longitudeMeters = (second.longitude - first.longitude) * 111320 * Math.cos(latitude);
+  return Math.sqrt(latitudeMeters ** 2 + longitudeMeters ** 2);
+}
+
+export function calculatePathDistance(points = []) {
+  return points.slice(1).reduce((total, point, index) => total + coordinateDistanceMeters(points[index], point), 0);
+}
+
 function scoreLighting(route, lightingWays) {
   const step = Math.max(1, Math.floor(route.coordinates.length / 80));
   let lit = 0;
