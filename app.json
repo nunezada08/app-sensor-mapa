@@ -5,7 +5,15 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+  "userInterfaceStyle": "dark",
+  "plugins": [
+    [
+      "expo-location",
+      {
+        "locationWhenInUsePermission": "Permitir que o Light Street use sua localização para mostrar sua posição no mapa e orientar sua rota."
+      }
+    ]
+  ],
     "ios": {
       "supportsTablet": true
     },

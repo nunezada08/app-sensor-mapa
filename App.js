@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import * as Location from 'expo-location';
+import { useEffect, useState } from 'react';
 import {
   Pressable,
   SafeAreaView,
@@ -9,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 
 const COLORS = {
   background: '#111111',
@@ -21,26 +23,49 @@ const COLORS = {
   road: '#078cb9',
 };
 
-function MapSurface({ compact = false, onTap }) {
+const DEFAULT_REGION = {
+  latitude: -23.55052,
+  longitude: -46.633308,
+  latitudeDelta: 0.08,
+  longitudeDelta: 0.08,
+};
+
+function MapSurface({ compact = false, location, destinationLocation, onMapPress }) {
+  const region = location && destinationLocation
+    ? {
+      latitude: (location.latitude + destinationLocation.latitude) / 2,
+      longitude: (location.longitude + destinationLocation.longitude) / 2,
+      latitudeDelta: Math.max(Math.abs(location.latitude - destinationLocation.latitude) * 1.8, 0.03),
+      longitudeDelta: Math.max(Math.abs(location.longitude - destinationLocation.longitude) * 1.8, 0.03),
+    }
+    : location
+      ? { ...location, latitudeDelta: 0.08, longitudeDelta: 0.08 }
+      : DEFAULT_REGION;
+  const [mapRegion, setMapRegion] = useState(region);
+  const routeCoordinates = location && destinationLocation ? [location, destinationLocation] : [];
+
+  useEffect(() => {
+    setMapRegion(region);
+  }, [location?.latitude, location?.longitude, destinationLocation?.latitude, destinationLocation?.longitude]);
+
   return (
-    <Pressable style={[styles.map, compact && styles.mapCompact]} onPress={onTap}>
-      <View style={[styles.road, styles.roadOne]} />
-      <View style={[styles.road, styles.roadTwo]} />
-      <View style={[styles.road, styles.roadThree]} />
-      <View style={[styles.road, styles.roadFour]} />
-      <View style={styles.mapGrid} />
-      <Text style={[styles.mapLabel, styles.labelHudson]}>HUDSON RIVER</Text>
-      <Text style={[styles.mapLabel, styles.labelCity]}>New York</Text>
-      <Text style={[styles.mapLabel, styles.labelSoho]}>SOHO</Text>
-      <Text style={[styles.mapLabel, styles.labelBrooklyn]}>DOWNTOWN{`\n`}BROOKLYN</Text>
-      <Text style={[styles.mapLabel, styles.labelPark]}>PROSPECT PARK</Text>
-      <View style={styles.destinationPin}>
-        <View style={styles.pinDot} />
-      </View>
-      <View style={styles.mapScale}>
-        <Text style={styles.scaleText}>1.2 km</Text>
-      </View>
-    </Pressable>
+    <MapView
+      style={[styles.map, compact && styles.mapCompact]}
+      initialRegion={DEFAULT_REGION}
+      region={mapRegion}
+      onRegionChangeComplete={setMapRegion}
+      showsUserLocation={Boolean(location)}
+      showsMyLocationButton
+      showsCompass
+      mapType="standard"
+      onPress={onMapPress}
+    >
+      {location ? <Marker coordinate={location} title="Você está aqui" description="Localização atual" /> : null}
+      {destinationLocation ? <Marker coordinate={destinationLocation} pinColor={COLORS.cyan} title="Destino" /> : null}
+      {routeCoordinates.length > 1 ? (
+        <Polyline coordinates={routeCoordinates} strokeColor={COLORS.cyan} strokeWidth={5} />
+      ) : null}
+    </MapView>
   );
 }
 
@@ -85,7 +110,7 @@ function RouteCard({ type, time, icon, accent, onPress }) {
   );
 }
 
-function HomeScreen({ destination, setDestination, onSearch, onHistory, onGps }) {
+function HomeScreen({ destination, setDestination, onSearch, onHistory, onGps, location, locationStatus, destinationLocation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.homeContent} keyboardShouldPersistTaps="handled">
@@ -97,10 +122,10 @@ function HomeScreen({ destination, setDestination, onSearch, onHistory, onGps })
         </View>
         <SearchBar value={destination} onChangeText={setDestination} onSubmit={onSearch} />
         <View style={styles.mapHomeWrap}>
-          <MapSurface />
+          <MapSurface location={location} destinationLocation={destinationLocation} />
           <View style={styles.mapOverlay}>
-            <Text style={styles.mapOverlayTitle}>Mapa noturno</Text>
-            <Text style={styles.mapOverlaySubtitle}>Rotas iluminadas perto de você</Text>
+            <Text style={styles.mapOverlayTitle}>{location ? 'Sua localização' : 'Mapa real'}</Text>
+            <Text style={styles.mapOverlaySubtitle}>{locationStatus}</Text>
           </View>
         </View>
         <Pressable style={styles.primaryButton} onPress={onSearch}>
@@ -112,7 +137,7 @@ function HomeScreen({ destination, setDestination, onSearch, onHistory, onGps })
             <Text style={styles.quickIcon}>◎</Text>
             <View>
               <Text style={styles.quickTitle}>Localização</Text>
-              <Text style={styles.quickSubtitle}>Verificar sinal do GPS</Text>
+              <Text style={styles.quickSubtitle}>{location ? 'Sinal conectado' : 'Ativar sinal do GPS'}</Text>
             </View>
           </Pressable>
           <Pressable style={styles.quickAction} onPress={onHistory}>
@@ -129,7 +154,7 @@ function HomeScreen({ destination, setDestination, onSearch, onHistory, onGps })
   );
 }
 
-function RouteOptionsScreen({ destination, onBack, onSelect }) {
+function RouteOptionsScreen({ destination, onBack, onSelect, location, destinationLocation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.routeScreen}>
@@ -139,7 +164,7 @@ function RouteOptionsScreen({ destination, onBack, onSelect }) {
             <Text numberOfLines={1} style={styles.destinationText}>{destination || 'Shopping valinhos'}</Text>
           </View>
         </View>
-        <MapSurface compact />
+        <MapSurface compact location={location} destinationLocation={destinationLocation} />
         <View style={styles.routeOptionsPanel}>
           <Text style={styles.panelKicker}>ESCOLHA COMO CHEGAR</Text>
           <RouteCard type="Rota segura" time="15" icon="☼" accent="#078fb5" onPress={() => onSelect('Rota segura', 15)} />
@@ -150,19 +175,18 @@ function RouteOptionsScreen({ destination, onBack, onSelect }) {
   );
 }
 
-function NavigationScreen({ route, time, onBack, onCancel }) {
+function NavigationScreen({ route, time, onBack, onCancel, location, destinationLocation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.navigationScreen}>
         <View style={styles.navigationMapWrap}>
-          <MapSurface compact />
+          <MapSurface compact location={location} destinationLocation={destinationLocation} />
           <View style={styles.navigationTopBar}>
             <BackButton onPress={onBack} />
             <View style={styles.destinationPill}>
               <Text numberOfLines={1} style={styles.destinationText}>Shopping valinhos</Text>
             </View>
           </View>
-          <View style={styles.navigationRouteLine} />
         </View>
         <View style={styles.arrivalPanel}>
           <Text style={styles.arrivalKicker}>VOCÊ ESTÁ A CAMINHO</Text>
@@ -252,17 +276,79 @@ export default function App() {
   const [screen, setScreen] = useState('home');
   const [destination, setDestination] = useState('');
   const [activeRoute, setActiveRoute] = useState({ type: 'Rota segura', time: 15 });
+  const [location, setLocation] = useState(null);
+  const [destinationLocation, setDestinationLocation] = useState(null);
+  const [locationStatus, setLocationStatus] = useState('Solicitando permissão de localização...');
 
-  const search = () => setScreen('routes');
+  const requestLocation = async () => {
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        setLocationStatus('Permissão de localização negada');
+        return false;
+      }
+
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setLocation({ latitude: current.coords.latitude, longitude: current.coords.longitude });
+      setLocationStatus('GPS conectado · localização atual');
+      return true;
+    } catch (error) {
+      setLocationStatus('Não foi possível acessar o sensor GPS');
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    let watcher;
+    let mounted = true;
+
+    const startLocation = async () => {
+      const granted = await requestLocation();
+      if (!granted || !mounted) return;
+      watcher = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10, timeInterval: 5000 },
+        (update) => {
+          if (mounted) {
+            setLocation({ latitude: update.coords.latitude, longitude: update.coords.longitude });
+            setLocationStatus('GPS conectado · atualizando em tempo real');
+          }
+        },
+      );
+    };
+
+    startLocation();
+    return () => {
+      mounted = false;
+      watcher?.remove();
+    };
+  }, []);
+
+  const search = async () => {
+    if (destination.trim()) {
+      try {
+        const results = await Location.geocodeAsync(destination.trim());
+        if (results[0]) {
+          setDestinationLocation({ latitude: results[0].latitude, longitude: results[0].longitude });
+        }
+      } catch (error) {
+        setDestinationLocation(null);
+      }
+    }
+    setScreen('routes');
+  };
   const selectRoute = (type, time) => { setActiveRoute({ type, time }); setScreen('navigation'); };
+  const retryLocation = async () => {
+    await requestLocation();
+    setScreen('home');
+  };
 
   return (
     <View style={styles.app}>
       <StatusBar style="light" />
-      {screen === 'home' && <HomeScreen destination={destination} setDestination={setDestination} onSearch={search} onHistory={() => setScreen('history')} onGps={() => setScreen('gps')} />}
-      {screen === 'routes' && <RouteOptionsScreen destination={destination} onBack={() => setScreen('home')} onSelect={selectRoute} />}
-      {screen === 'navigation' && <NavigationScreen route={activeRoute.type} time={activeRoute.time} onBack={() => setScreen('routes')} onCancel={() => setScreen('home')} />}
-      {screen === 'gps' && <GpsScreen onBack={() => setScreen('home')} onRetry={() => setScreen('home')} onManual={() => setScreen('home')} />}
+      {screen === 'home' && <HomeScreen destination={destination} setDestination={setDestination} onSearch={search} onHistory={() => setScreen('history')} onGps={() => setScreen('gps')} location={location} locationStatus={locationStatus} destinationLocation={destinationLocation} />}
+      {screen === 'routes' && <RouteOptionsScreen destination={destination} location={location} destinationLocation={destinationLocation} onBack={() => setScreen('home')} onSelect={selectRoute} />}
+      {screen === 'navigation' && <NavigationScreen route={activeRoute.type} time={activeRoute.time} location={location} destinationLocation={destinationLocation} onBack={() => setScreen('routes')} onCancel={() => setScreen('home')} />}
+      {screen === 'gps' && <GpsScreen onBack={() => setScreen('home')} onRetry={retryLocation} onManual={() => setScreen('home')} />}
       {screen === 'history' && <HistoryScreen onBack={() => setScreen('home')} onRepeat={() => setScreen('routes')} />}
     </View>
   );
