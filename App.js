@@ -24,7 +24,7 @@ export default function App() {
   const { history, addCompletedRoute, clearHistory } = useRouteHistory();
 
   useEffect(() => {
-    if (destinationText.trim().length < 3) {
+    if (destinationText.trim().length < 2) {
       setSuggestions([]);
       return undefined;
     }
@@ -53,11 +53,11 @@ export default function App() {
     setScreen('home');
   };
 
-  const findRoute = async (query = destinationText) => {
+  const findRoute = async (query = destinationText, selectedDestination = null) => {
     setError('');
     setLoading(true);
     try {
-      const nextDestination = await geocodeDestination(query);
+      const nextDestination = selectedDestination || await geocodeDestination(query);
       setDestination(nextDestination);
       setDestinationText(query);
       setSuggestions([]);
@@ -83,7 +83,7 @@ export default function App() {
   const selectSuggestion = (suggestion) => {
     setDestinationText(suggestion.label);
     setSuggestions([]);
-    findRoute(suggestion.label);
+    findRoute(suggestion.label, suggestion);
   };
 
   const retryLocation = async () => {
