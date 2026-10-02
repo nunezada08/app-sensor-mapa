@@ -1,5 +1,25 @@
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 
+function toPlace(result) {
+  return {
+    latitude: Number(result.lat),
+    longitude: Number(result.lon),
+    label: result.display_name,
+  };
+}
+
+export async function searchDestinations(query) {
+  const cleanQuery = query.trim();
+  if (cleanQuery.length < 3) return [];
+
+  const response = await fetch(`${NOMINATIM_URL}?format=jsonv2&limit=5&accept-language=pt-BR&q=${encodeURIComponent(cleanQuery)}`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error('Não foi possível carregar sugestões.');
+  const results = await response.json();
+  return results.map(toPlace);
+}
+
 export async function geocodeDestination(query) {
   const cleanQuery = query.trim();
   if (!cleanQuery) throw new Error('Digite um destino.');
@@ -12,9 +32,5 @@ export async function geocodeDestination(query) {
   const results = await response.json();
   if (!results.length) throw new Error('Destino não encontrado.');
 
-  return {
-    latitude: Number(results[0].lat),
-    longitude: Number(results[0].lon),
-    label: results[0].display_name,
-  };
+  return toPlace(results[0]);
 }

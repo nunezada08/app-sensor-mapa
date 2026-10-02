@@ -4,8 +4,8 @@ export function BackButton({ onPress }) {
   return <Pressable accessibilityRole="button" accessibilityLabel="Voltar" style={styles.backButton} onPress={onPress}><Text style={styles.backArrow}>‹</Text></Pressable>;
 }
 
-export function SearchBar({ value, onChangeText, onSubmit }) {
-  return <View style={styles.searchBar}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Buscar destino" value={value} onChangeText={onChangeText} onSubmitEditing={onSubmit} placeholder="Para onde?" placeholderTextColor="#efefef" returnKeyType="search" style={styles.searchInput} /></View>;
+export function SearchBar({ value, onChangeText, onSubmit, suggestions, onSelectSuggestion, searching }) {
+  return <View style={styles.searchArea}><View style={styles.searchBar}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Buscar destino" value={value} onChangeText={onChangeText} onSubmitEditing={onSubmit} placeholder="Para onde?" placeholderTextColor="#efefef" returnKeyType="search" style={styles.searchInput} /></View>{searching ? <Text style={styles.searchStatus}>Buscando endereços...</Text> : null}{suggestions?.length ? <View style={styles.suggestions}>{suggestions.map((suggestion) => <Pressable key={`${suggestion.latitude}-${suggestion.longitude}`} style={styles.suggestion} onPress={() => onSelectSuggestion(suggestion)}><Text style={styles.suggestionIcon}>⌖</Text><Text numberOfLines={2} style={styles.suggestionText}>{suggestion.label}</Text></Pressable>)}</View> : null}</View>;
 }
 
 export function RouteCard({ title, duration, distance, icon, disabled, onPress }) {
@@ -21,7 +21,12 @@ export const uiStyles = styles;
 const styles = StyleSheet.create({
   backButton: { width: 45, height: 45, borderRadius: 24, backgroundColor: 'rgba(35,35,35,.95)', alignItems: 'center', justifyContent: 'center' },
   backArrow: { color: '#f5f5f5', fontSize: 37, lineHeight: 36, fontWeight: '300', marginTop: -4 },
-  searchBar: { height: 58, borderRadius: 18, backgroundColor: '#333', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, marginBottom: 18 },
+  searchBar: { height: 58, borderRadius: 18, backgroundColor: '#333', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18 },
+  searchStatus: { color: '#999', fontSize: 11, paddingHorizontal: 14, paddingTop: 7 },
+  suggestions: { backgroundColor: '#2a2a2a', borderRadius: 14, marginTop: 6, overflow: 'hidden' },
+  suggestion: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#444' },
+  suggestionIcon: { color: '#0cc5d7', fontSize: 20, marginRight: 10 },
+  suggestionText: { color: '#f5f5f5', fontSize: 12, lineHeight: 16, flex: 1 },
   searchIcon: { color: '#f5f5f5', fontSize: 33, lineHeight: 32, marginRight: 12, transform: [{ rotate: '-20deg' }] },
   searchInput: { flex: 1, color: '#f5f5f5', fontSize: 17, fontWeight: '700' },
   routeCard: { backgroundColor: '#2a2a2a', borderRadius: 22, padding: 19, marginBottom: 14, minHeight: 122, width: '100%' },
@@ -34,4 +39,5 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: '#0cc5d7', minHeight: 56, borderRadius: 17, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 20, width: '100%' },
   disabledButton: { opacity: 0.45 },
   primaryButtonText: { color: '#062a31', fontWeight: '900', fontSize: 17 },
+  searchArea: { marginBottom: 18, zIndex: 10 },
 });

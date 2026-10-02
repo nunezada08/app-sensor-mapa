@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useDeviceLocation } from './hooks/useDeviceLocation';
 import { useRouteHistory } from './hooks/useRouteHistory';
@@ -8,7 +8,7 @@ import HistoryPage from './pages/HistoryPage';
 import HomePage from './pages/HomePage';
 import NavigationPage from './pages/NavigationPage';
 import RouteOptionsPage from './pages/RouteOptionsPage';
-import { geocodeDestination } from './services/geocoding';
+import { geocodeDestination, searchDestinations } from './services/geocoding';
 import { calculateRoute } from './services/routing';
 
 export default function App() {
@@ -18,8 +18,35 @@ export default function App() {
   const [route, setRoute] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [searchingSuggestions, setSearchingSuggestions] = useState(false);
   const { location, status: locationStatus, permissionDenied, requestLocation } = useDeviceLocation();
   const { history, addCompletedRoute, clearHistory } = useRouteHistory();
+
+  useEffect(() => {
+    if (destinationText.trim().length < 3) {
+      setSuggestions([]);
+      return undefined;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      setSearchingSuggestions(true);
+      try {
+        const results = await searchDestinations(destinationText);
+        if (active) setSuggestions(results);
+      } catch (suggestionError) {
+        if (active) setSuggestions([]);
+      } finally {
+        if (active) setSearchingSuggestions(false);
+      }
+    }, 450);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [destinationText]);
 
   const openHome = () => {
     setError('');
@@ -28,16 +55,19 @@ export default function App() {
 
   const findRoute = async (query = destinationText) => {
     setError('');
-    if (!location) {
-      setError('Aguardando sua localização. Ative o GPS antes de buscar um destino.');
-      setScreen('gps');
-      return;
-    }
-
     setLoading(true);
     try {
       const nextDestination = await geocodeDestination(query);
       setDestination(nextDestination);
+      setDestinationText(query);
+      setSuggestions([]);
+
+      if (!location) {
+        setError('Destino encontrado. Ative o GPS para calcular a rota.');
+        setScreen('gps');
+        return;
+      }
+
       setRoute(null);
       setScreen('routes');
       const nextRoute = await calculateRoute(location, nextDestination);
@@ -47,6 +77,32 @@ export default function App() {
       setScreen('home');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const selectSuggestion = (suggestion) => {
+    setDestinationText(suggestion.label);
+    setSuggestions([]);
+    findRoute(suggestion.label);
+  };
+
+  const retryLocation = async () => {
+    const currentLocation = await requestLocation();
+    if (currentLocation && destination) {
+      setLoading(true);
+      setError('');
+      try {
+        const nextRoute = await calculateRoute(currentLocation, destination);
+        setRoute(nextRoute);
+        setScreen('routes');
+      } catch (routeError) {
+        setError(routeError.message || 'Não foi possível calcular a rota.');
+        setScreen('home');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      openHome();
     }
   };
 
@@ -74,10 +130,10 @@ export default function App() {
   return (
     <View style={styles.app}>
       <StatusBar style="light" />
-      {screen === 'home' ? <HomePage destinationText={destinationText} setDestinationText={setDestinationText} onSearch={() => findRoute()} onHistory={() => setScreen('history')} onGps={() => setScreen('gps')} location={location} locationStatus={locationStatus} error={error} loading={loading} /> : null}
+      {screen === 'home' ? <HomePage destinationText={destinationText} setDestinationText={setDestinationText} onSearch={() => findRoute()} onSelectSuggestion={selectSuggestion} suggestions={suggestions} searchingSuggestions={searchingSuggestions} onHistory={() => setScreen('history')} onGps={() => setScreen('gps')} location={location} locationStatus={locationStatus} error={error} loading={loading} /> : null}
       {screen === 'routes' && destination ? <RouteOptionsPage destination={destination} location={location} route={route} loading={loading} error={error} onBack={openHome} onSelect={() => route && setScreen('navigation')} /> : null}
       {screen === 'navigation' && destination && route ? <NavigationPage destination={destination} location={location} route={route} onBack={() => setScreen('routes')} onFinish={completeRoute} /> : null}
-      {screen === 'gps' ? <GpsPage status={locationStatus} permissionDenied={permissionDenied} onBack={openHome} onRetry={async () => { await requestLocation(); openHome(); }} /> : null}
+      {screen === 'gps' ? <GpsPage status={locationStatus} permissionDenied={permissionDenied} onBack={openHome} onRetry={retryLocation} /> : null}
       {screen === 'history' ? <HistoryPage history={history} onBack={openHome} onRepeat={repeatRoute} onClear={clearHistory} /> : null}
     </View>
   );
