@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import {
   Pressable,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -30,6 +31,16 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.08,
 };
 
+function distanceInKm(first, second) {
+  if (!first || !second) return null;
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const latitudeDelta = toRadians(second.latitude - first.latitude);
+  const longitudeDelta = toRadians(second.longitude - first.longitude);
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(toRadians(first.latitude)) * Math.cos(toRadians(second.latitude)) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function MapSurface({ compact = false, location, destinationLocation, onMapPress }) {
   const region = location && destinationLocation
     ? {
@@ -47,6 +58,24 @@ function MapSurface({ compact = false, location, destinationLocation, onMapPress
   useEffect(() => {
     setMapRegion(region);
   }, [location?.latitude, location?.longitude, destinationLocation?.latitude, destinationLocation?.longitude]);
+
+  if (Platform.OS === 'web') {
+    const points = [location, destinationLocation].filter(Boolean);
+    const latitudes = points.map((point) => point.latitude);
+    const longitudes = points.map((point) => point.longitude);
+    const minLatitude = Math.min(...(latitudes.length ? latitudes : [DEFAULT_REGION.latitude])) - 0.04;
+    const maxLatitude = Math.max(...(latitudes.length ? latitudes : [DEFAULT_REGION.latitude])) + 0.04;
+    const minLongitude = Math.min(...(longitudes.length ? longitudes : [DEFAULT_REGION.longitude])) - 0.04;
+    const maxLongitude = Math.max(...(longitudes.length ? longitudes : [DEFAULT_REGION.longitude])) + 0.04;
+    const marker = location || destinationLocation || DEFAULT_REGION;
+    const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${minLongitude},${minLatitude},${maxLongitude},${maxLatitude}&layer=mapnik&marker=${marker.latitude},${marker.longitude}`;
+
+    return (
+      <View style={[styles.map, compact && styles.mapCompact]}>
+        <iframe title="Mapa OpenStreetMap" src={mapUrl} style={styles.webMap} />
+      </View>
+    );
+  }
 
   return (
     <MapView
@@ -155,27 +184,31 @@ function HomeScreen({ destination, setDestination, onSearch, onHistory, onGps, l
 }
 
 function RouteOptionsScreen({ destination, onBack, onSelect, location, destinationLocation }) {
+  const distance = distanceInKm(location, destinationLocation);
+  const safeTime = distance ? Math.max(5, Math.round(distance * 18)) : 15;
+  const fastTime = distance ? Math.max(4, Math.round(distance * 12)) : 22;
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.routeScreen}>
         <View style={styles.routeTopBar}>
           <BackButton onPress={onBack} />
           <View style={styles.destinationPill}>
-            <Text numberOfLines={1} style={styles.destinationText}>{destination || 'Shopping valinhos'}</Text>
+            <Text numberOfLines={1} style={styles.destinationText}>{destination || 'Escolha um destino'}</Text>
           </View>
         </View>
         <MapSurface compact location={location} destinationLocation={destinationLocation} />
         <View style={styles.routeOptionsPanel}>
           <Text style={styles.panelKicker}>ESCOLHA COMO CHEGAR</Text>
-          <RouteCard type="Rota segura" time="15" icon="☼" accent="#078fb5" onPress={() => onSelect('Rota segura', 15)} />
-          <RouteCard type="Rota rápida" time="22" icon="☾" accent="#078fb5" onPress={() => onSelect('Rota rápida', 22)} />
+          <RouteCard type="Rota segura" time={safeTime} icon="☼" accent="#078fb5" onPress={() => onSelect('Rota segura', safeTime)} />
+          <RouteCard type="Rota rápida" time={fastTime} icon="☾" accent="#078fb5" onPress={() => onSelect('Rota rápida', fastTime)} />
         </View>
       </View>
     </SafeAreaView>
   );
 }
 
-function NavigationScreen({ route, time, onBack, onCancel, location, destinationLocation }) {
+function NavigationScreen({ route, time, destination, onBack, onCancel, location, destinationLocation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.navigationScreen}>
@@ -184,7 +217,7 @@ function NavigationScreen({ route, time, onBack, onCancel, location, destination
           <View style={styles.navigationTopBar}>
             <BackButton onPress={onBack} />
             <View style={styles.destinationPill}>
-              <Text numberOfLines={1} style={styles.destinationText}>Shopping valinhos</Text>
+              <Text numberOfLines={1} style={styles.destinationText}>{destination || 'Destino selecionado'}</Text>
             </View>
           </View>
         </View>
@@ -347,7 +380,7 @@ export default function App() {
       <StatusBar style="light" />
       {screen === 'home' && <HomeScreen destination={destination} setDestination={setDestination} onSearch={search} onHistory={() => setScreen('history')} onGps={() => setScreen('gps')} location={location} locationStatus={locationStatus} destinationLocation={destinationLocation} />}
       {screen === 'routes' && <RouteOptionsScreen destination={destination} location={location} destinationLocation={destinationLocation} onBack={() => setScreen('home')} onSelect={selectRoute} />}
-      {screen === 'navigation' && <NavigationScreen route={activeRoute.type} time={activeRoute.time} location={location} destinationLocation={destinationLocation} onBack={() => setScreen('routes')} onCancel={() => setScreen('home')} />}
+      {screen === 'navigation' && <NavigationScreen route={activeRoute.type} time={activeRoute.time} destination={destination} location={location} destinationLocation={destinationLocation} onBack={() => setScreen('routes')} onCancel={() => setScreen('home')} />}
       {screen === 'gps' && <GpsScreen onBack={() => setScreen('home')} onRetry={retryLocation} onManual={() => setScreen('home')} />}
       {screen === 'history' && <HistoryScreen onBack={() => setScreen('home')} onRepeat={() => setScreen('routes')} />}
     </View>
@@ -368,6 +401,7 @@ const styles = StyleSheet.create({
   mapHomeWrap: { height: 360, borderRadius: 24, overflow: 'hidden', marginBottom: 16 },
   map: { flex: 1, backgroundColor: '#26373c', overflow: 'hidden', position: 'relative' },
   mapCompact: { minHeight: 330, borderRadius: 0 },
+  webMap: { width: '100%', height: '100%', border: '0', display: 'block' },
   mapGrid: { ...StyleSheet.absoluteFillObject, opacity: 0.25, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#78909c' },
   road: { position: 'absolute', backgroundColor: COLORS.road, borderRadius: 30, opacity: 0.95 },
   roadOne: { width: 24, height: 450, left: '55%', top: -48, transform: [{ rotate: '33deg' }] },
