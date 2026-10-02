@@ -9,8 +9,8 @@ export function SearchBar({ value, onChangeText, onSubmit, suggestions, onSelect
   return <View style={styles.searchArea}><View style={styles.searchBar}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Buscar rua, município ou lugar em São Paulo" value={value} onChangeText={onChangeText} onSubmitEditing={onSubmit} placeholder="Rua, cidade ou lugar" placeholderTextColor="#efefef" returnKeyType="search" style={styles.searchInput} /></View>{searching ? <Text style={styles.searchStatus}>Buscando em ruas, municípios e lugares de São Paulo...</Text> : null}{showEmpty ? <Text style={styles.searchStatus}>Nenhum resultado encontrado em São Paulo.</Text> : null}{suggestions?.length ? <View style={styles.suggestions}>{suggestions.map((suggestion) => <Pressable key={`${suggestion.latitude}-${suggestion.longitude}`} style={styles.suggestion} onPress={() => onSelectSuggestion(suggestion)}><Text style={styles.suggestionIcon}>⌖</Text><Text numberOfLines={2} style={styles.suggestionText}>{suggestion.label}</Text></Pressable>)}</View> : null}</View>;
 }
 
-export function RouteCard({ title, duration, distance, icon, disabled, onPress }) {
-  return <Pressable disabled={disabled} style={[styles.routeCard, disabled && styles.disabledCard]} onPress={onPress}><View style={styles.routeHeader}><Text style={styles.routeIcon}>{icon}</Text><Text style={styles.routeTitle}>{title}</Text></View><Text style={styles.routeTime}>{duration} · {distance}</Text><Text style={styles.routeHint}>{disabled ? 'Aguardando rota real' : 'Trajeto calculado pelo mapa'}</Text></Pressable>;
+export function RouteCard({ title, duration, distance, icon, safetyLabel, recommended, disabled, onPress }) {
+  return <Pressable disabled={disabled} style={[styles.routeCard, recommended && styles.recommendedCard, disabled && styles.disabledCard]} onPress={onPress}><View style={styles.routeHeader}><Text style={styles.routeIcon}>{icon}</Text><View style={styles.routeTitleWrap}><Text style={styles.routeTitle}>{title}</Text>{recommended ? <Text style={styles.recommended}>MAIS ILUMINADA</Text> : null}</View></View><Text style={styles.routeTime}>{duration} · {distance}</Text><Text style={styles.routeHint}>{disabled ? 'Aguardando rota real' : safetyLabel || 'Iluminação não informada'}</Text></Pressable>;
 }
 
 export function PrimaryButton({ children, onPress, disabled }) {
@@ -35,6 +35,9 @@ const styles = StyleSheet.create({
   routeHeader: { flexDirection: 'row', alignItems: 'center' },
   routeIcon: { color: '#f5f5f5', fontSize: 22, width: 34 },
   routeTitle: { color: '#f5f5f5', fontSize: 18, fontWeight: '800' },
+  routeTitleWrap: { flex: 1 },
+  recommendedCard: { borderWidth: 1, borderColor: '#0cc5d7' },
+  recommended: { color: '#0cc5d7', fontSize: 9, fontWeight: '900', marginTop: 3, letterSpacing: 0.8 },
   routeTime: { color: '#d1d1d1', fontSize: 13, marginTop: 9, marginLeft: 34 },
   routeHint: { color: '#0cc5d7', fontSize: 11, marginTop: 8, marginLeft: 34 },
   primaryButton: { backgroundColor: '#0cc5d7', minHeight: 56, borderRadius: 17, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 20, width: '100%' },

@@ -9,13 +9,14 @@ import HomePage from './pages/HomePage';
 import NavigationPage from './pages/NavigationPage';
 import RouteOptionsPage from './pages/RouteOptionsPage';
 import { geocodeDestination, searchDestinations } from './services/geocoding';
-import { calculateRoute } from './services/routing';
+import { calculateRoutes } from './services/routing';
 
 export default function App() {
   const [screen, setScreen] = useState('home');
   const [destinationText, setDestinationText] = useState('');
   const [destination, setDestination] = useState(null);
-  const [route, setRoute] = useState(null);
+  const [routes, setRoutes] = useState([]);
+  const [selectedRoute, setSelectedRoute] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -68,10 +69,11 @@ export default function App() {
         return;
       }
 
-      setRoute(null);
+      setRoutes([]);
+      setSelectedRoute(null);
       setScreen('routes');
-      const nextRoute = await calculateRoute(location, nextDestination);
-      setRoute(nextRoute);
+      const nextRoutes = await calculateRoutes(location, nextDestination);
+      setRoutes(nextRoutes);
     } catch (requestError) {
       setError(requestError.message || 'Não foi possível encontrar a rota.');
       setScreen('home');
@@ -92,8 +94,8 @@ export default function App() {
       setLoading(true);
       setError('');
       try {
-        const nextRoute = await calculateRoute(currentLocation, destination);
-        setRoute(nextRoute);
+        const nextRoutes = await calculateRoutes(currentLocation, destination);
+        setRoutes(nextRoutes);
         setScreen('routes');
       } catch (routeError) {
         setError(routeError.message || 'Não foi possível calcular a rota.');
@@ -107,19 +109,22 @@ export default function App() {
   };
 
   const completeRoute = () => {
-    if (!destination || !route || !location) return;
+    if (!destination || !selectedRoute || !location) return;
     addCompletedRoute({
       destinationLabel: destination.label,
       destinationCoordinates: destination,
       originCoordinates: location,
       originLabel: `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`,
-      distanceMeters: route.distanceMeters,
-      durationSeconds: route.durationSeconds,
+      distanceMeters: selectedRoute.distanceMeters,
+      durationSeconds: selectedRoute.durationSeconds,
+      modeLabel: selectedRoute.modeLabel,
+      lightingScore: selectedRoute.lightingScore,
     });
     setScreen('home');
     setDestinationText('');
     setDestination(null);
-    setRoute(null);
+    setRoutes([]);
+    setSelectedRoute(null);
   };
 
   const repeatRoute = (savedRoute) => {
@@ -131,8 +136,8 @@ export default function App() {
     <View style={styles.app}>
       <StatusBar style="light" />
       {screen === 'home' ? <HomePage destinationText={destinationText} setDestinationText={setDestinationText} onSearch={() => findRoute()} onSelectSuggestion={selectSuggestion} suggestions={suggestions} searchingSuggestions={searchingSuggestions} onHistory={() => setScreen('history')} onGps={() => setScreen('gps')} location={location} locationStatus={locationStatus} error={error} loading={loading} /> : null}
-      {screen === 'routes' && destination ? <RouteOptionsPage destination={destination} location={location} route={route} loading={loading} error={error} onBack={openHome} onSelect={() => route && setScreen('navigation')} /> : null}
-      {screen === 'navigation' && destination && route ? <NavigationPage destination={destination} location={location} route={route} onBack={() => setScreen('routes')} onFinish={completeRoute} /> : null}
+      {screen === 'routes' && destination ? <RouteOptionsPage destination={destination} location={location} routes={routes} loading={loading} error={error} onBack={openHome} onSelect={(route) => { setSelectedRoute(route); setScreen('navigation'); }} /> : null}
+      {screen === 'navigation' && destination && selectedRoute ? <NavigationPage destination={destination} location={location} route={selectedRoute} onBack={() => setScreen('routes')} onFinish={completeRoute} /> : null}
       {screen === 'gps' ? <GpsPage status={locationStatus} permissionDenied={permissionDenied} onBack={openHome} onRetry={retryLocation} /> : null}
       {screen === 'history' ? <HistoryPage history={history} onBack={openHome} onRepeat={repeatRoute} onClear={clearHistory} /> : null}
     </View>
